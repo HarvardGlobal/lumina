@@ -1,7 +1,7 @@
 {
   description = "Pinned developer tooling for the LUMINA core workspace";
 
-  # This immutable revision is mirrored into flake.lock on the first Nix run.
+  # This immutable revision and its content hash are committed in flake.lock.
   # Run `nix flake update` deliberately when reviewing toolchain updates.
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/ac62194c3917d5f474c1a844b6fd6da2db95077d";
 
