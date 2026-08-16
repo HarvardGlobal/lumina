@@ -42,8 +42,8 @@ declares an immutable nixpkgs revision and the matching `flake.lock` is
 committed with Core. Docker remains a host service.
 
 ```bash
+git clone git@github.com:HarvardGlobal/lumina.git
 cd lumina
-cp .env.example .env
 make setup       # sync exact commits, build in dependency order, then check health
 make health
 make smoke-test
@@ -51,8 +51,8 @@ make smoke-test
 
 The local endpoints are LUMINA API (`8100`), Archive (`8200`), PRomop
 (`8000`), and Wearables (`8300`). `make setup` does not overwrite an existing
-`.env`. It starts each service and lets the owning services run their own
-migrations.
+`.env`; when it is absent, it creates one from `.env.example`. It starts each
+service and lets the owning services run their own migrations.
 
 ## Commands
 
