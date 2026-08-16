@@ -38,9 +38,8 @@ models or create another OMOP or PatientRecord implementation here.
 Nix (with flakes enabled), Docker Desktop (or Docker Engine with Compose v2),
 and GitHub access to the pinned components are required. The Make targets enter
 the Nix development shell automatically when Nix is available. `flake.nix`
-declares an immutable nixpkgs revision; Nix writes the matching `flake.lock` on
-its first run, which should be committed with the Core release. Docker remains
-a host service.
+declares an immutable nixpkgs revision and the matching `flake.lock` is
+committed with Core. Docker remains a host service.
 
 ```bash
 cd lumina
