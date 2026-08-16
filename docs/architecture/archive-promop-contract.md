@@ -13,18 +13,27 @@ cannot become an independent source of truth.
 
 ## Promotion rules
 
-Only a validated, eligible Archive record may be promoted. A promotion must
-retain the Archive UUID as lineage in the approved PRomop integration contract.
-Unmapped, rejected, or high-frequency source data remains Archive-only; it is
-not deleted or silently substituted.
+Only a validated, eligible Archive record may be promoted. The enabled
+integration is a preserved FHIR R4 Bundle submitted from Archive to PRomop's
+authenticated FHIR sync API. The caller supplies an explicit existing
+`promop_person_id`; Archive never performs identity resolution or fuzzy
+matching. Archive records its UUID, the PRomop person, PRomop's returned OMOP
+identifiers, mapping version, transform version, status, and error in
+`archive_promotion` and provenance events.
 
-No final clinical terminology mapping is defined by this document. Mapping,
-eligibility criteria, and target PRomop interface must be approved and covered
-by an integration test before Archive-to-OMOP promotion is enabled.
+PRomop owns the clinical terminology mapping and OMOP writes. Archive only
+preserves and forwards the original Bundle, then persists the returned lineage;
+it does not connect to or write PRomop's database. A successful request is
+idempotent per Archive record, PRomop person, mapping version, and transform
+version. Failures remain visible as failed lineage and leave the source intact.
+
+Unmapped, rejected, high-frequency, or non-FHIR data remains Archive-only; it
+is not deleted or silently substituted. Any additional promotion type requires
+an approved versioned transform, defined eligibility, and a real PRomop
+integration test before it is enabled.
 
 ## Large payloads
 
-The initial implementation stores JSON payloads in PostgreSQL. A future
-`raw_payload_uri` extension may point at object storage while this record keeps
-the provenance and identifier. Object-storage behavior is intentionally not
-implemented in the first milestone.
+Raw source objects and high-volume normalized Parquet datasets remain in the
+Archive. They must be reduced through an approved aggregation before any future
+OMOP promotion; the Archive does not emit one OMOP row per wearable sample.

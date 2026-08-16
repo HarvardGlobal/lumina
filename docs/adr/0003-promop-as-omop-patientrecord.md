@@ -16,6 +16,10 @@ owner of its models, APIs, migrations, OMOP representation, and PatientRecord.
 
 ## Consequences
 
-Core only performs stable connectivity checks until an approved promotion
-contract is implemented. No `lumina-omop` or `lumina-patientrecord` project is
-created.
+Core provides a narrow, authenticated adapter for preserved FHIR R4 Bundles.
+It forwards a caller-selected existing PRomop Person ID to PRomop's FHIR sync
+API, stores the returned OMOP identifiers as Archive lineage, and does not
+write PRomop's database directly. Other Archive data, including raw and
+high-frequency wearable data, remains Archive-only until it has an approved
+versioned transform and integration test. No `lumina-omop` or
+`lumina-patientrecord` project is created.

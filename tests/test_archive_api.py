@@ -15,7 +15,7 @@ def test_archive_create_retrieve_and_patient_filter(tmp_path):
         "source_record_id": "source-1",
         "record_type": "observation",
         "raw_payload": {"value": 42, "nested": {"source_field": "preserved"}},
-        "schema_version": "0.1.0",
+        "schema_version": "1.0.0",
     }
     created = client.post("/api/v1/archive/records", json=payload)
     assert created.status_code == 201

@@ -17,7 +17,7 @@ class ArchiveRecordCreate(BaseModel):
     raw_payload: dict[str, Any]
     observed_at: datetime | None = None
     normalized_payload: dict[str, Any] | None = None
-    schema_version: str = Field(default="0.1.0", min_length=1, max_length=64)
+    schema_version: str = Field(default="1.0.0", min_length=1, max_length=64)
     mapping_version: str | None = Field(default=None, max_length=64)
     quality_status: str | None = Field(default=None, max_length=64)
     lumina_person_id: uuid.UUID | None = None
@@ -141,3 +141,29 @@ class DatasetIngestRead(BaseModel):
     raw_object: ObjectMetadataRead
     dataset: DatasetRead
     duplicate: bool = False
+
+
+class PromopPromotionRequest(BaseModel):
+    """Explicit target identity for a reviewed FHIR-to-PRomop promotion."""
+
+    promop_person_id: int = Field(gt=0)
+    mapping_version: str = Field(default="promop-fhir-r4", min_length=1, max_length=64)
+    transform_version: str = Field(default="archive-promop-fhir-bridge/1", min_length=1, max_length=64)
+
+
+class PromotionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    archive_record_id: uuid.UUID | None
+    archive_dataset_id: uuid.UUID | None
+    target_system: str
+    target_domain: str | None
+    target_table: str | None
+    target_record_id: str | None
+    target_details: dict[str, Any] | None
+    mapping_version: str | None
+    transform_version: str | None
+    promoted_at: datetime | None
+    status: str
+    error: str | None

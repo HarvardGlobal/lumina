@@ -23,7 +23,7 @@ def create_app(
     promop_base_url: str | None = None,
     wearables_base_url: str | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="LUMINA API", version="0.1.0")
+    app = FastAPI(title="LUMINA API", version="1.0.0")
     app.state.archive_base_url = archive_base_url or os.getenv("ARCHIVE_BASE_URL", "http://archive:8200")
     app.state.promop_base_url = promop_base_url or os.getenv("PROMOP_BASE_URL", "http://promop:8000")
     app.state.wearables_base_url = wearables_base_url or os.getenv("WEARABLES_BASE_URL", "http://wearables:8300")

@@ -90,9 +90,51 @@ make health
 make smoke-test
 ```
 
-`make smoke-test` proves the Archive create/retrieve flow. Archive-to-OMOP
-promotion is intentionally not simulated until an approved transformation and
-integration test exist.
+`make smoke-test` proves the Archive create/retrieve flow. The supported
+Archive-to-OMOP path is an explicit FHIR Bundle promotion, described below.
+
+## Archive to PRomop / OMOP
+
+Archive is always the first destination: it preserves the complete received
+payload and records provenance before any standardization. PRomop owns all
+FHIR-to-OMOP interpretation and writes the resulting OMOP rows; Archive never
+writes the PRomop database directly.
+
+The currently supported promotion path is a stored FHIR R4 Bundle. It requires
+an existing PRomop `Person` and an explicit numeric `promop_person_id`; Archive
+does not guess or resolve clinical identity. The shared
+`PROMOP_SERVICE_AUTH_TOKEN` authenticates Archive to PRomop. The example value
+in `.env.example` is strictly for local development and must be replaced for a
+deployed environment.
+
+```bash
+# 1. Preserve the original FHIR Bundle in Archive.
+curl -X POST 'http://localhost:8200/api/v1/archive/fhir?source_system=my-ehr' \
+  -H 'Content-Type: application/fhir+json' \
+  -H 'FHIR-Version: R4' \
+  --data-binary @bundle.json
+
+# 2. Use the returned record_id and explicitly choose its PRomop Person.
+curl -X POST "http://localhost:8200/api/v1/archive/records/<record_id>/promote/promop" \
+  -H 'Content-Type: application/json' \
+  --data '{"promop_person_id": 12345}'
+
+# 3. Inspect receipt, preserved source, PRomop result, and provenance.
+curl "http://localhost:8200/api/v1/archive/records/<record_id>/lineage"
+```
+
+The promotion response and lineage include the PRomop result (for example,
+the OMOP `measurement_ids`) and the mapping/transform versions. Repeating the
+same successful record/person/version request returns the existing lineage
+record and does not submit the Bundle a second time. A PRomop failure is
+recorded as failed provenance while the preserved Archive source remains
+available for a corrected retry.
+
+Only object-backed FHIR Bundles are eligible today. Generic JSON, raw binary,
+and wearable Parquet data remain Archive-only until a separately approved,
+versioned aggregation and PRomop mapping is implemented and tested. In
+particular, do not promote high-frequency wearable samples directly as OMOP
+measurements.
 
 ## Commands
 
@@ -101,7 +143,7 @@ make start        # start or rebuild the stack
 make stop         # stop the stack without removing data volumes
 make logs         # follow service logs
 make health       # probe every service separately
-make smoke-test   # prove source-preserving Archive create/retrieve flow
+make smoke-test   # prove Archive preservation, FHIR promotion, and OMOP lineage
 make versions     # show pinned component revisions
 make components   # materialize exact component commits without starting Docker
 make check-components  # fail if a cache checkout is missing, dirty, or drifting

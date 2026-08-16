@@ -4,7 +4,7 @@ import os
 import secrets
 import uuid
 from collections.abc import Generator
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 import pyarrow.parquet as pq
@@ -22,8 +22,11 @@ from .schemas import (
     DatasetRead,
     ObjectIngestRead,
     ObjectMetadataRead,
+    PromopPromotionRequest,
+    PromotionRead,
     WearableDatasetCreate,
 )
+from .promop import PromopClient, PromopPromotionError
 from .services import add_event, fhir_metadata, sha256, store_original, wearable_parquet_bytes
 from .storage import make_object_store
 
@@ -108,12 +111,14 @@ def create_app(
     database_url: str | None = None,
     object_store_root: str | None = None,
     bearer_token: str | None = None,
+    promop_client: PromopClient | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="LUMINA Archive", version="0.2.0")
+    app = FastAPI(title="LUMINA Archive", version="1.0.0")
     app.state.engine = make_engine(database_url)
     app.state.session_factory = make_session_factory(database_url)
     app.state.object_store = make_object_store(object_store_root)
     app.state.bearer_token = bearer_token if bearer_token is not None else os.getenv("ARCHIVE_BEARER_TOKEN", "")
+    app.state.promop_client = promop_client or PromopClient()
 
     @app.get("/health")
     def health(request: Request):
@@ -454,6 +459,116 @@ def create_app(
         session.commit()
         return {"dataset_id": dataset.id, "row_count": dataset.row_count, "rows": table.to_pylist()}
 
+    @app.post(
+        "/api/v1/archive/records/{record_id}/promote/promop",
+        response_model=PromotionRead,
+        status_code=status.HTTP_201_CREATED,
+        dependencies=[Depends(require_protected_access)],
+    )
+    def promote_fhir_record(
+        record_id: uuid.UUID,
+        payload: PromopPromotionRequest,
+        request: Request,
+        response: Response,
+        session: Session = Depends(get_session),
+    ):
+        """Promote a preserved FHIR Bundle through PRomop's own FHIR importer.
+
+        This is intentionally the only automatic promotion path: Archive never
+        maps generic JSON or minute-level wearable values into OMOP itself.
+        """
+        record = session.get(ArchiveRecord, record_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Archive record not found")
+        if record.format != "fhir-json" or record.object_id is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Only preserved FHIR Archive records can be promoted to PRomop",
+            )
+        existing = (
+            session.query(ArchivePromotion)
+            .filter(
+                ArchivePromotion.archive_record_id == record.id,
+                ArchivePromotion.target_system == "promop",
+                ArchivePromotion.target_record_id == str(payload.promop_person_id),
+                ArchivePromotion.mapping_version == payload.mapping_version,
+                ArchivePromotion.transform_version == payload.transform_version,
+                ArchivePromotion.status == "succeeded",
+            )
+            .first()
+        )
+        if existing is not None:
+            response.status_code = status.HTTP_200_OK
+            return existing
+        archive_object = session.get(ArchiveObject, record.object_id)
+        if archive_object is None:
+            raise HTTPException(status_code=409, detail="FHIR Archive object catalogue entry is unavailable")
+        try:
+            raw_bundle = request.app.state.object_store.get(archive_object.storage_uri)
+            bundle = json.loads(raw_bundle)
+        except (FileNotFoundError, UnicodeDecodeError, json.JSONDecodeError):
+            raise HTTPException(status_code=409, detail="Preserved FHIR content is unavailable or invalid")
+        if not isinstance(bundle, dict) or bundle.get("resourceType") != "Bundle":
+            raise HTTPException(status_code=422, detail="Only a preserved FHIR Bundle can be promoted")
+
+        promotion = ArchivePromotion(
+            archive_record_id=record.id,
+            target_system="promop",
+            target_domain="FHIR",
+            target_table="fhir_sync",
+            target_record_id=str(payload.promop_person_id),
+            mapping_version=payload.mapping_version,
+            transform_version=payload.transform_version,
+            status="pending",
+        )
+        session.add(promotion)
+        session.commit()
+        session.refresh(promotion)
+
+        fhir_version = (archive_object.metadata_json or {}).get("fhir_version")
+        try:
+            result = request.app.state.promop_client.promote_fhir(
+                archive_record_id=str(record.id),
+                person_id=payload.promop_person_id,
+                bundle=bundle,
+                fhir_version=fhir_version,
+            )
+        except PromopPromotionError as error:
+            promotion.status = "failed"
+            promotion.error = str(error)
+            session.add(promotion)
+            add_event(
+                session,
+                "promotion_failed",
+                record=record,
+                archive_object=archive_object,
+                source_system=record.source_system,
+                details={"target_system": "promop", "promotion_id": str(promotion.id)},
+            )
+            session.commit()
+            raise HTTPException(status_code=502, detail="PRomop promotion failed; Archive source data remains preserved")
+        if result.get("person_id") != payload.promop_person_id:
+            promotion.status = "failed"
+            promotion.error = "PRomop returned a mismatched person identifier"
+            session.add(promotion)
+            session.commit()
+            raise HTTPException(status_code=502, detail="PRomop returned an invalid promotion response")
+        promotion.status = "succeeded"
+        promotion.target_details = result
+        promotion.promoted_at = datetime.now(UTC)
+        session.add(promotion)
+        add_event(
+            session,
+            "promoted",
+            record=record,
+            archive_object=archive_object,
+            source_system=record.source_system,
+            details={"target_system": "promop", "promotion_id": str(promotion.id), "person_id": payload.promop_person_id},
+        )
+        session.commit()
+        session.refresh(promotion)
+        return promotion
+
     @app.get("/api/v1/archive/records/{record_id}/lineage")
     def record_lineage(record_id: uuid.UUID, session: Session = Depends(get_session)):
         record = session.get(ArchiveRecord, record_id)
@@ -475,7 +590,7 @@ def create_app(
             "object": ObjectMetadataRead.model_validate(archive_object).model_dump(mode="json") if archive_object else None,
             "dataset": DatasetRead.model_validate(dataset).model_dump(mode="json") if dataset else None,
             "events": [{"event_type": event.event_type, "occurred_at": event.occurred_at, "details": event.details} for event in events],
-            "promotions": [{"target_system": item.target_system, "status": item.status, "target_table": item.target_table, "target_record_id": item.target_record_id} for item in promotions],
+            "promotions": [PromotionRead.model_validate(item).model_dump(mode="json") for item in promotions],
         }
 
     return app

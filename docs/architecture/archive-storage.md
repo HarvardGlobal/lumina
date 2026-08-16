@@ -11,9 +11,12 @@ Source bytes -> Archive object store -> Archive catalogue / provenance
                        |
                        +-> normalized Parquet
                                       |
-                         approved future promotion only
+                         Archive-only pending approved aggregation
                                       v
-                        PRomop: OMOP + PatientRecord
+
+ Stored FHIR R4 Bundle -> explicit PRomop person -> PRomop FHIR sync
+                                                     |
+                                                    OMOP + PatientRecord
 ```
 
 PRomop is the standardized interpretation layer. PatientRecord is derived from
@@ -27,10 +30,10 @@ OMOP and never replaces the received source object or Archive dataset.
 | Exact API/FHIR payload | private object storage | `archive_object` + `archive_record` | FHIR Bundle, provider JSON |
 | High-volume structured data | Parquet with ZSTD | `archive_dataset` + linked record/object | minute heart rate, sleep epochs |
 | Very high-frequency/native binary | private object storage | `archive_object` + `archive_record` | ECG, DICOM, genomics, documents |
-| Standardized clinical summary | PRomop, separately | future `archive_promotion` lineage | daily summary promoted to OMOP |
+| PRomop FHIR synchronization result | `archive_promotion` JSON lineage | `archive_promotion` | FHIR Bundle promoted to OMOP |
 
 PostgreSQL is the control plane: metadata, identity references, checksums,
-provenance, catalogue searches, and future promotion lineage. It is not the
+provenance, catalogue searches, and promotion lineage. It is not the
 store for one row per high-frequency observation.
 
 ## Current ingestion paths
@@ -56,7 +59,7 @@ POST /api/v1/archive/datasets/wearables
 `/objects` preserves arbitrary bytes exactly. `/fhir` preserves original FHIR
 JSON bytes first, calculates SHA-256, and indexes only non-transformative
 metadata: FHIR version, Bundle type, resource types, profiles, and an available
-source Patient identifier. It does not convert FHIR into OMOP.
+source Patient identifier. Ingestion itself does not convert FHIR into OMOP.
 
 The wearable endpoint stores the exact submitted provider JSON as an
 `archive_object`, writes normalized observations to a new immutable Parquet
@@ -93,13 +96,34 @@ and is not supplied by the local Docker filesystem backend.
 ## Provenance and promotion lineage
 
 `archive_provenance_event` records receipt, storage, validation,
-normalization, sensitive reads, and supersession. `archive_promotion` reserves
-the lineage needed for a future approved PRomop promotion—target table/record,
-mapping version, transform version, status, and error—but Archive performs no
-clinical mapping itself.
+normalization, sensitive reads, promotion, and supersession. `archive_promotion`
+records promotion target, result IDs/details, mapping version, transform
+version, status, and error.
+
+The enabled promotion endpoint is:
+
+```text
+POST /api/v1/archive/records/{record_id}/promote/promop
+```
+
+It accepts `{ "promop_person_id": <positive integer> }` and only permits a
+preserved `fhir-json` Bundle with a source object. Archive reads the preserved
+bytes and calls PRomop's authenticated FHIR sync API with the explicitly chosen
+person. PRomop—not Archive—performs the FHIR-to-OMOP mapping and returns its
+created OMOP identifiers. Archive stores that response as immutable lineage.
+
+The same record, PRomop person, mapping version, and transform version is
+idempotent after success: Archive returns the existing promotion without a
+second PRomop call. A failed request remains a failed promotion event and does
+not delete or alter the source object.
+
+Generic JSON, raw objects, and wearable Parquet datasets have no promotion
+endpoint. They stay Archive-only unless an approved, versioned aggregation and
+PRomop mapping is added with an integration test; high-frequency samples must
+not be mapped one-for-one into OMOP.
 
 Use `GET /api/v1/archive/records/{id}/lineage` to inspect the linked source
-record, raw object, normalized dataset, events, and known future promotions.
+record, raw object, normalized dataset, events, and known promotions.
 Dataset catalogue queries are available at `/api/v1/archive/datasets` with
 person, source, modality, metric, and time-range filters.
 

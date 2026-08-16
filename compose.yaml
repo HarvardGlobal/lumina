@@ -23,6 +23,9 @@ services:
       ARCHIVE_OBJECT_STORE_BACKEND: ${ARCHIVE_OBJECT_STORE_BACKEND:-filesystem}
       ARCHIVE_OBJECT_STORE_ROOT: ${ARCHIVE_OBJECT_STORE_ROOT:-/var/lib/lumina-archive}
       ARCHIVE_BEARER_TOKEN: ${ARCHIVE_BEARER_TOKEN:-}
+      PROMOP_BASE_URL: http://promop:8000
+      PROMOP_SERVICE_AUTH_TOKEN: ${PROMOP_SERVICE_AUTH_TOKEN:-lumina-local-promop-service-token}
+      PROMOP_REQUEST_TIMEOUT_SECONDS: ${PROMOP_REQUEST_TIMEOUT_SECONDS:-30}
     depends_on:
       archive-db:
         condition: service_healthy
@@ -60,6 +63,7 @@ services:
       ADMIN_EMAIL: ${PROMOP_ADMIN_EMAIL}
       ADMIN_PASSWORD: ${PROMOP_ADMIN_PASSWORD}
       APP_BASE_URL: ${PROMOP_APP_BASE_URL}
+      SERVICE_AUTH_TOKEN: ${PROMOP_SERVICE_AUTH_TOKEN:-lumina-local-promop-service-token}
       PRODUCTION_URL: http://localhost:${PROMOP_API_PORT}
       PORT: 8000
     command: >

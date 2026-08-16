@@ -8,16 +8,35 @@ from fastapi.testclient import TestClient
 from app.database import Base
 from app.main import create_app
 from app.models import ArchiveRecord
+from app.promop import PromopPromotionError
 
 
-def archive_client(tmp_path, *, bearer_token="archive-test-token"):
+def archive_client(tmp_path, *, bearer_token="archive-test-token", promop_client=None):
     app = create_app(
         f"sqlite:///{tmp_path / 'archive.db'}",
         object_store_root=str(tmp_path / "objects"),
         bearer_token=bearer_token,
+        promop_client=promop_client,
     )
     Base.metadata.create_all(app.state.engine)
     return app, TestClient(app), {"Authorization": f"Bearer {bearer_token}"}
+
+
+class FakePromopClient:
+    def __init__(self, *, fail=False):
+        self.calls = []
+        self.fail = fail
+
+    def promote_fhir(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.fail:
+            raise PromopPromotionError("PRomop rejected the promotion (HTTP 422)")
+        return {
+            "person_id": kwargs["person_id"],
+            "measurement_ids": [101],
+            "condition_ids": [],
+            "totals": {"measurements": 1},
+        }
 
 
 def test_raw_object_is_byte_exact_and_idempotent(tmp_path):
@@ -181,3 +200,60 @@ def test_supersession_keeps_original_inline_record(tmp_path):
     assert correction.status_code == 201
     assert correction.json()["supersedes_record_id"] == first.json()["id"]
     assert client.get(f"/api/v1/archive/records/{first.json()['id']}").json()["raw_payload"] == {"answer": "initial"}
+
+
+def test_preserved_fhir_promotes_through_promop_once_and_records_lineage(tmp_path):
+    promop = FakePromopClient()
+    _, client, auth = archive_client(tmp_path, promop_client=promop)
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "entry": [{"resource": {"resourceType": "Observation", "id": "obs-archive-1"}}],
+    }
+    archived = client.post(
+        "/api/v1/archive/fhir",
+        content=json.dumps(bundle, separators=(",", ":")).encode(),
+        headers={**auth, "Content-Type": "application/fhir+json", "FHIR-Version": "R4"},
+    )
+    assert archived.status_code == 201
+    record_id = archived.json()["record_id"]
+    promotion = client.post(
+        f"/api/v1/archive/records/{record_id}/promote/promop",
+        json={"promop_person_id": 7001},
+        headers=auth,
+    )
+    assert promotion.status_code == 201
+    assert promotion.json()["status"] == "succeeded"
+    assert promotion.json()["target_details"]["measurement_ids"] == [101]
+    assert len(promop.calls) == 1
+    assert promop.calls[0]["bundle"] == bundle
+    assert promop.calls[0]["person_id"] == 7001
+
+    retry = client.post(
+        f"/api/v1/archive/records/{record_id}/promote/promop",
+        json={"promop_person_id": 7001},
+        headers=auth,
+    )
+    assert retry.status_code == 200
+    assert len(promop.calls) == 1
+    lineage = client.get(f"/api/v1/archive/records/{record_id}/lineage")
+    assert lineage.json()["promotions"][0]["target_record_id"] == "7001"
+    assert any(event["event_type"] == "promoted" for event in lineage.json()["events"])
+
+
+def test_failed_promop_promotion_is_retained_as_failed_lineage(tmp_path):
+    _, client, auth = archive_client(tmp_path, promop_client=FakePromopClient(fail=True))
+    archived = client.post(
+        "/api/v1/archive/fhir",
+        content=b'{"resourceType":"Bundle","type":"collection","entry":[]}',
+        headers={**auth, "Content-Type": "application/fhir+json"},
+    )
+    failed = client.post(
+        f"/api/v1/archive/records/{archived.json()['record_id']}/promote/promop",
+        json={"promop_person_id": 7002},
+        headers=auth,
+    )
+    assert failed.status_code == 502
+    lineage = client.get(f"/api/v1/archive/records/{archived.json()['record_id']}/lineage")
+    assert lineage.json()["promotions"][0]["status"] == "failed"
+    assert any(event["event_type"] == "promotion_failed" for event in lineage.json()["events"])

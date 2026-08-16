@@ -136,6 +136,7 @@ class ArchivePromotion(Base):
     target_record_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     mapping_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     transform_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    target_details: Mapped[dict[str, Any] | None] = mapped_column(JSON_TYPE, nullable=True)
     promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="pending")
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -162,7 +162,7 @@ def main() -> int:
                 sync_component(component)
             return 0
         print(f"LUMINA version: {(ROOT / 'VERSION').read_text().strip()}")
-        print("Archive schema version: 0.1.0")
+        print("Archive schema version: 1.0.0")
         print("OMOP CDM version: 5.4")
         results = [status_component(component) for component in components]
         return 0 if all(results) else 1
