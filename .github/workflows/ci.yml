@@ -1,0 +1,22 @@
+name: LUMINA core CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install core test dependencies
+        run: pip install -r services/archive/requirements.txt -r services/api/requirements.txt
+      - name: Test core code
+        run: PYTHONPATH=. pytest -q tests
+      - name: Build LUMINA-owned images
+        run: |
+          docker build -f services/archive/Dockerfile .
+          docker build -f services/api/Dockerfile .

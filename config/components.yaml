@@ -1,0 +1,21 @@
+lumina:
+  version: 0.1.0
+
+components:
+  promop:
+    repository: https://github.com/healthkey-ai/promop.git
+    clone_url: git@github.com:healthkey-ai/promop.git
+    git_ref: dee3d180ce1a8b8dc3f00133bac2c57a89f8e4be
+  lumina-wearables:
+    repository: https://github.com/HarvardGlobal/lumina-wearables.git
+    clone_url: git@github.com:HarvardGlobal/lumina-wearables.git
+    git_ref: 4abf5ecde0bdf427006b7f07411782c3e200c82e
+
+schemas:
+  archive: 0.1.0
+  wearable_common_data_schema: 0.1.0
+  wearable_metric_registry: 0.1.0
+
+standards:
+  omop_cdm: "5.4"
+  ohdsi_vocabulary_release: "UNSET"

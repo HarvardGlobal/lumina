@@ -1,0 +1,115 @@
+services:
+  archive-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${ARCHIVE_DB_NAME}
+      POSTGRES_USER: ${ARCHIVE_DB_USER}
+      POSTGRES_PASSWORD: ${ARCHIVE_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - archive_data:/var/lib/postgresql/data
+
+  archive:
+    build:
+      context: .
+      dockerfile: services/archive/Dockerfile
+    environment:
+      ARCHIVE_DATABASE_URL: ${ARCHIVE_DATABASE_URL}
+      ARCHIVE_BUCKET: ${ARCHIVE_BUCKET}
+    depends_on:
+      archive-db:
+        condition: service_healthy
+    ports:
+      - "${ARCHIVE_API_PORT}:8200"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8200/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  promop-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${PROMOP_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${PROMOP_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${PROMOP_POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - promop_data:/var/lib/postgresql/data
+
+  promop:
+    build:
+      context: ${LUMINA_COMPONENTS_DIR:-.lumina/components}/promop
+    environment:
+      DATABASE_URL: postgresql://${PROMOP_POSTGRES_USER}:${PROMOP_POSTGRES_PASSWORD}@promop-db:5432/${PROMOP_POSTGRES_DB}
+      SECRET_KEY: ${PROMOP_SECRET_KEY}
+      DEBUG: ${PROMOP_DEBUG}
+      ADMIN_EMAIL: ${PROMOP_ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${PROMOP_ADMIN_PASSWORD}
+      APP_BASE_URL: ${PROMOP_APP_BASE_URL}
+      PRODUCTION_URL: http://localhost:${PROMOP_API_PORT}
+      PORT: 8000
+    command: >
+      sh -c "python manage.py migrate --noinput && python manage.py setup_admin &&
+      gunicorn ctomop.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 2
+      --timeout 120 --access-logfile - --error-logfile - --log-level info"
+    depends_on:
+      promop-db:
+        condition: service_healthy
+    ports:
+      - "${PROMOP_API_PORT}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+
+  wearables:
+    build:
+      context: ${LUMINA_COMPONENTS_DIR:-.lumina/components}/lumina-wearables
+    environment:
+      OPEN_WEARABLES_BASE_URL: ${OPEN_WEARABLES_BASE_URL}
+      OPEN_WEARABLES_API_KEY: ${OPEN_WEARABLES_API_KEY}
+    ports:
+      - "${WEARABLES_API_PORT}:8300"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8300/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  lumina-api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      ARCHIVE_BASE_URL: ${ARCHIVE_BASE_URL}
+      PROMOP_BASE_URL: ${PROMOP_BASE_URL}
+      PROMOP_API_BASE: ${PROMOP_API_BASE}
+      WEARABLES_BASE_URL: ${WEARABLES_BASE_URL}
+    depends_on:
+      archive:
+        condition: service_healthy
+      promop:
+        condition: service_healthy
+      wearables:
+        condition: service_healthy
+    ports:
+      - "${LUMINA_API_PORT}:8100"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  archive_data:
+  promop_data:
