@@ -142,4 +142,6 @@ variables its checked-in Docker configuration actually requires, including its
 own database credentials, Django secret key, and admin account.
 
 See `docs/architecture/archive-promop-contract.md` for the data contract and
-`config/components.yaml` for tested sibling revisions.
+`docs/architecture/archive-storage.md` for the Archive's object, Parquet,
+identity, lineage, and local-security design. See `config/components.yaml` for
+tested sibling revisions.

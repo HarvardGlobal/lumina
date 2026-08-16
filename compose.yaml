@@ -20,11 +20,16 @@ services:
     environment:
       ARCHIVE_DATABASE_URL: ${ARCHIVE_DATABASE_URL}
       ARCHIVE_BUCKET: ${ARCHIVE_BUCKET}
+      ARCHIVE_OBJECT_STORE_BACKEND: ${ARCHIVE_OBJECT_STORE_BACKEND:-filesystem}
+      ARCHIVE_OBJECT_STORE_ROOT: ${ARCHIVE_OBJECT_STORE_ROOT:-/var/lib/lumina-archive}
+      ARCHIVE_BEARER_TOKEN: ${ARCHIVE_BEARER_TOKEN:-}
     depends_on:
       archive-db:
         condition: service_healthy
     ports:
       - "${ARCHIVE_API_PORT}:8200"
+    volumes:
+      - archive_object_data:/var/lib/lumina-archive
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8200/health')"]
       interval: 10s
@@ -112,4 +117,5 @@ services:
 
 volumes:
   archive_data:
+  archive_object_data:
   promop_data:
