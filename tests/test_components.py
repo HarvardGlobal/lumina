@@ -16,6 +16,11 @@ def test_component_manifest_uses_immutable_full_shas(monkeypatch, tmp_path):
     monkeypatch.setenv("LUMINA_COMPONENTS_DIR", str(tmp_path / "components"))
     components = module.parse_manifest()
 
-    assert [component["name"] for component in components] == ["promop", "lumina-wearables"]
+    assert [component["name"] for component in components] == [
+        "promop",
+        "lumina-wearables",
+        "open-wearables",
+    ]
     assert all(module.SHA.fullmatch(component["git_ref"]) for component in components)
+    assert module.REQUIRED_FILES["open-wearables"] == ("docker-compose.yml", "backend/app/main.py")
     assert module.components_dir() == tmp_path / "components"

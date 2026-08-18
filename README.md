@@ -18,14 +18,15 @@ projection and is never a source of truth.
 ## Workspace
 
 The core repository owns a versioned local component cache. A developer only
-needs to clone `lumina`; `make setup` materializes the exact PRomop and wearable
-revisions declared in `config/components.yaml`:
+needs to clone `lumina`; `make setup` materializes the exact PRomop, LUMINA
+Wearables, and Open Wearables revisions declared in `config/components.yaml`:
 
 ```text
 lumina/
 ├── .lumina/components/
 │   ├── promop/             # detached, pinned checkout
-│   └── lumina-wearables/   # detached, pinned checkout
+│   ├── lumina-wearables/   # detached, pinned checkout
+│   └── open-wearables/     # detached, pinned upstream checkout
 └── config/components.yaml
 ```
 
@@ -35,15 +36,17 @@ models or create another OMOP or PatientRecord implementation here.
 
 ## Start the complete stack from Core
 
-You only clone this repository. Do **not** clone PRomop or Wearables next to
-it: Core fetches the tested revisions itself into `.lumina/components`.
+You only clone this repository. Do **not** clone PRomop, Wearables, or Open
+Wearables next to it: Core fetches the tested revisions itself into
+`.lumina/components`.
 
 Before starting, ensure that:
 
 - Docker Desktop is running (or Docker Engine and Compose v2 are available).
 - Your SSH key can read `healthkey-ai/promop` and
   `HarvardGlobal/lumina-wearables`; Core uses their SSH clone URLs when it
-  materializes the pinned revisions.
+  materializes the pinned revisions. Open Wearables is public and fetched over
+  HTTPS.
 - Nix with flakes enabled is installed for the reproducible toolchain. The
   Make targets enter the committed Nix flake automatically. The flake provides
   pinned Python 3.12 plus every Core runtime import (FastAPI, SQLAlchemy,
@@ -64,7 +67,7 @@ this order:
 1. Enters the Nix development shell when Nix is installed.
 2. Creates `.env` from `.env.example` if needed, without overwriting an
    existing `.env`.
-3. Fetches PRomop and Wearables at the full commit SHAs in
+3. Fetches PRomop, Wearables, and Open Wearables at the full commit SHAs in
    `config/components.yaml`, checks them out at detached HEADs, and verifies
    their required service files.
 4. Builds the Core, Archive, PRomop, and Wearables images.
@@ -72,6 +75,13 @@ this order:
    PRomop, starts Wearables, and finally starts the LUMINA API after its
    dependencies are healthy.
 6. Probes every service and fails the command if a health check does not pass.
+
+Open Wearables is version-pinned and fetched in step 3 but is not started by
+the default Compose stack. It is an upstream application with its own OAuth,
+administrator, PostgreSQL, Redis, and worker lifecycle. Configure and deploy
+that application separately, then set `OPEN_WEARABLES_BASE_URL` (including
+`/api/v1`) and inject `OPEN_WEARABLES_API_KEY`. This prevents `make setup` from
+silently creating an unconfigured patient-identity system.
 
 The first run can take several minutes because Docker downloads base images and
 PRomop installs Python and frontend dependencies. Later starts reuse Docker and
@@ -95,6 +105,28 @@ make smoke-test
 
 `make smoke-test` proves the Archive create/retrieve flow. The supported
 Archive-to-OMOP path is an explicit FHIR Bundle promotion, described below.
+
+## Wearable pilot
+
+Wearables `1.1.0` adds a deliberately narrow Open Wearables read-only pilot:
+provider-supplied daily resting heart rate and HRV-SDNN. Its API returns a
+transparent daily preview with provider, device, source-metric, and temporal
+resolution provenance. It does not perform calculations, imputation, or a
+database write. The human lookup sheet and the exact source-field mappings are
+in the pinned Wearables repository at `docs/metric-cheat-sheet.md`.
+
+This release does not yet write those samples into PRomop. The current PRomop
+wearable endpoint accepts native Garmin FIT and Apple Health ZIP files; it does
+not provide an authenticated endpoint for canonical daily service-to-service
+records. LUMINA therefore does not bypass PRomop or fabricate a provider file.
+The proposed PRomop-owned import contract is documented in Wearables at
+`docs/promop-integration.md`; it is the next prerequisite for a direct
+PRomop-only integration.
+
+For a full LUMINA deployment, raw Open Wearables responses can later be stored
+in Archive before a selected, approved daily metric is promoted to PRomop. Raw
+continuous heart rate and HRV-RMSSD are explicitly excluded from this pilot:
+they require independent aggregation, vocabulary, and governance decisions.
 
 ## Archive to PRomop / OMOP
 

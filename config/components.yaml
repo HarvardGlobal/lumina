@@ -1,5 +1,5 @@
 lumina:
-  version: 1.0.0
+  version: 1.1.0
 
 components:
   promop:
@@ -9,12 +9,16 @@ components:
   lumina-wearables:
     repository: https://github.com/HarvardGlobal/lumina-wearables.git
     clone_url: git@github.com:HarvardGlobal/lumina-wearables.git
-    git_ref: f4421e5b5ab8608c8fe37a10d6395696b106c74b
+    git_ref: bd1c3a5af5fe3623ec1b5595b5228b1ff936992c
+  open-wearables:
+    repository: https://github.com/the-momentum/open-wearables.git
+    clone_url: https://github.com/the-momentum/open-wearables.git
+    git_ref: cb3ad1fd1141138179d27f7e787a1d0049a071c9
 
 schemas:
   archive: 1.0.0
-  wearable_common_data_schema: 1.0.0
-  wearable_metric_registry: 1.0.0
+  wearable_common_data_schema: 1.1.0
+  wearable_metric_registry: 0.1.0
 
 standards:
   omop_cdm: "5.4"

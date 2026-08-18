@@ -21,6 +21,7 @@ SHA = re.compile(r"^[0-9a-f]{40}$")
 REQUIRED_FILES = {
     "promop": ("Dockerfile", "manage.py"),
     "lumina-wearables": ("Dockerfile", "app/main.py"),
+    "open-wearables": ("docker-compose.yml", "backend/app/main.py"),
 }
 
 
