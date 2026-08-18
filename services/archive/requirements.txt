@@ -4,7 +4,7 @@ pydantic==2.13.4
 uvicorn[standard]==0.34.2
 SQLAlchemy==2.0.41
 psycopg[binary]==3.2.13
-alembic==1.16.1
+alembic==1.19.1
 pytest==9.0.3
 pytest-cov==6.0.0
 httpx==0.28.1
