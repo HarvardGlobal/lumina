@@ -22,6 +22,22 @@ if [[ -e "$target_dir" && ! -d "$target_dir/.git" ]]; then
   exit 1
 fi
 
+if [[ -e "$target_dir" ]] && git -C "$target_dir" show-ref --verify --quiet "refs/heads/$branch"; then
+  current_branch="$(git -C "$target_dir" branch --show-current)"
+  if [[ "$current_branch" != "$branch" ]]; then
+    if [[ -n "$(git -C "$target_dir" status --porcelain)" ]]; then
+      echo "Refusing to switch dirty editable Open Wearables checkout: $target_dir" >&2
+      exit 1
+    fi
+    git -C "$target_dir" switch "$branch"
+  fi
+  if [[ "$(git -C "$target_dir" rev-parse HEAD)" != "$revision" ]]; then
+    echo "[EDIT] Editable Open Wearables checkout is ahead of the manifest pin: $target_dir"
+    echo "[EDIT] Commit/push this branch, then update config/components.yaml when the change is approved."
+    exit 0
+  fi
+fi
+
 if [[ ! -e "$target_dir" ]]; then
   git clone --no-checkout "$repository" "$target_dir"
 fi
@@ -38,8 +54,8 @@ else
   git -C "$target_dir" switch -c "$branch" FETCH_HEAD
 fi
 if [[ "$(git -C "$target_dir" rev-parse HEAD)" != "$revision" ]]; then
-  echo "Editable branch $branch does not point to the requested revision; refusing to rewrite it." >&2
-  exit 1
+  echo "[EDIT] Editable branch $branch is ahead of the manifest pin; it was left unchanged."
+  exit 0
 fi
 
 echo "[OK] Editable Open Wearables checkout: $target_dir"

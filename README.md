@@ -123,7 +123,9 @@ it as **Open Wearables (editable upstream)**. A change there does not alter a
 running LUMINA stack. Commit it to an appropriate fork/upstream branch, then
 review, test, and replace the `open-wearables.git_ref` in
 `config/components.yaml` with the new full SHA. `make components` then updates
-the clean runtime cache reproducibly.
+the clean runtime cache reproducibly. If the helper reports `[EDIT]`, it has
+deliberately left your newer editable branch untouched; push or preserve that
+work before changing the manifest pin.
 
 The first run can take several minutes because Docker downloads base images and
 PRomop installs Python and frontend dependencies. Later starts reuse Docker and
