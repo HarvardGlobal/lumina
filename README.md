@@ -107,6 +107,24 @@ remain host/deployment prerequisites. Do not create its `backend/config/.env`
 inside `.lumina/components`: that would make the immutable source cache dirty.
 Keep configuration and secrets in the deployment environment instead.
 
+### Edit Open Wearables safely
+
+Use the immutable component cache to run LUMINA; use a separate editable
+workspace checkout to investigate or contribute an upstream fix:
+
+```bash
+make open-wearables-workspace
+make open-wearables-shell
+```
+
+The first command creates `../open-wearables` at the exact manifest revision
+on branch `lumina/open-wearables-0.7.0`; the supplied VS Code workspace includes
+it as **Open Wearables (editable upstream)**. A change there does not alter a
+running LUMINA stack. Commit it to an appropriate fork/upstream branch, then
+review, test, and replace the `open-wearables.git_ref` in
+`config/components.yaml` with the new full SHA. `make components` then updates
+the clean runtime cache reproducibly.
+
 The first run can take several minutes because Docker downloads base images and
 PRomop installs Python and frontend dependencies. Later starts reuse Docker and
 Nix caches.
@@ -151,6 +169,9 @@ For a full LUMINA deployment, raw Open Wearables responses can later be stored
 in Archive before a selected, approved daily metric is promoted to PRomop. Raw
 continuous heart rate and HRV-RMSSD are explicitly excluded from this pilot:
 they require independent aggregation, vocabulary, and governance decisions.
+The required raw-object, device, subject-identity, mapping-version, correction,
+and promotion lineage is defined in
+[docs/architecture/wearable-data-lineage.md](docs/architecture/wearable-data-lineage.md).
 
 ## Archive to PRomop / OMOP
 

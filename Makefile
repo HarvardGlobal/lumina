@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: setup start stop restart build logs health smoke-test versions clean test components check-components nix-check nix-update open-wearables-shell
+.PHONY: setup start stop restart build logs health smoke-test versions clean test components check-components nix-check nix-update open-wearables-shell open-wearables-workspace
 
 setup:
 	./scripts/with_nix.sh ./scripts/bootstrap.sh
@@ -55,3 +55,6 @@ nix-check:
 
 open-wearables-shell:
 	nix develop .#open-wearables
+
+open-wearables-workspace:
+	./scripts/with_nix.sh ./scripts/open_wearables_workspace.sh
