@@ -26,7 +26,7 @@ def test_component_manifest_uses_immutable_full_shas(monkeypatch, tmp_path):
     assert module.REQUIRED_FILES["open-wearables"] == ("docker-compose.yml", "backend/app/main.py")
     assert {component["name"]: component.get("version") for component in components} == {
         "promop": None,
-        "lumina-wearables": "1.1.2",
+        "lumina-wearables": "1.1.3",
         "open-wearables": "0.7.0",
     }
     assert module.components_dir() == tmp_path / "components"

@@ -1,0 +1,26 @@
+name: Bug report
+description: Report a reproducible software defect without sensitive data.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include patient data, credentials, production URLs, or security vulnerabilities."
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Safe reproduction steps
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: LUMINA version or commit
+    validations:
+      required: true

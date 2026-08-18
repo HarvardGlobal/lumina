@@ -4,6 +4,18 @@ LUMINA orchestrates a source-preserving Archive, PRomop (OMOP CDM 5.4 and
 PatientRecord), and the LUMINA wearable ingestion service. It is the entry
 point for running the local development stack.
 
+## Project status and open source
+
+LUMINA is actively developed health-data infrastructure. It is not a clinical
+decision-support tool and is not, by source availability alone, a compliant or
+validated patient-data deployment. See the patient-data deployment boundary
+below before any live use.
+
+LUMINA is licensed under [Apache-2.0](LICENSE). Contributions are welcome under
+the [contribution guide](CONTRIBUTING.md), [code of conduct](CODE_OF_CONDUCT.md),
+and [governance model](GOVERNANCE.md). Please report vulnerabilities according
+to [SECURITY.md](SECURITY.md), never in a public issue.
+
 ## Architecture
 
 ```text
