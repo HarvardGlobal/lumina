@@ -7,8 +7,13 @@ cd "$root_dir"
 if [[ -f .env ]]; then
   set -a
   # shellcheck disable=SC1091
-  source .env
+source .env
   set +a
+fi
+
+if [[ "${LUMINA_ENV:-development}" == "production" ]]; then
+  echo "make smoke-test is deliberately disabled in production: it creates synthetic data and production services are private." >&2
+  exit 2
 fi
 
 archive_port="${ARCHIVE_API_PORT:-8200}"
@@ -49,7 +54,7 @@ echo "[OK] Archive synthetic smoke test (record $record_id)"
 # The promoted FHIR test uses a dedicated, local-only PRomop Person. PRomop
 # owns its OMOP write; Archive only sends preserved source bytes and records
 # the returned target IDs as lineage.
-docker compose exec -T promop python manage.py shell -c \
+"$root_dir/scripts/compose.sh" exec -T promop python manage.py shell -c \
   "from omop_core.models import Person; Person.objects.get_or_create(person_id=${promop_person_id})" >/dev/null
 
 fhir_bundle="$(python3 - "$run_id" "$fhir_source_text" "$observed_at" <<'PY'
@@ -91,7 +96,7 @@ assert result["target_details"]["person_id"] == 990001
 print(result["id"])
 ' <<<"$promotion")"
 
-measurement_count="$(docker compose exec -T promop env \
+measurement_count="$("$root_dir/scripts/compose.sh" exec -T promop env \
   LUMINA_SMOKE_PERSON_ID="$promop_person_id" LUMINA_SMOKE_SOURCE="$fhir_source_text" \
   python manage.py shell -c "import os; from omop_core.models import Measurement; print(Measurement.objects.filter(person_id=int(os.environ['LUMINA_SMOKE_PERSON_ID']), measurement_source_value=os.environ['LUMINA_SMOKE_SOURCE']).count())" \
   | tail -n 1)"

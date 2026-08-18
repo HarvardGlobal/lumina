@@ -103,7 +103,7 @@ def test_fhir_bundle_is_preserved_and_catalogued(tmp_path):
     assert body["object"]["metadata_json"]["resource_types"] == ["Bundle", "Observation", "Patient"]
     restored = client.get(f"/api/v1/archive/objects/{body['object']['id']}/content", headers=auth)
     assert restored.content == original
-    record = client.get(f"/api/v1/archive/records/{body['record_id']}").json()
+    record = client.get(f"/api/v1/archive/records/{body['record_id']}", headers=auth).json()
     assert record["source_subject_id"] == "external-patient-42"
     assert record["lumina_person_id"] is None
     assert record["identity_status"] == "unresolved"
@@ -153,7 +153,7 @@ def test_wearable_minutes_are_parquet_catalogued_and_losslessly_readable(tmp_pat
     preserved_source = client.get(f"/api/v1/archive/objects/{body['raw_object']['id']}/content", headers=auth)
     assert preserved_source.content == original_source_bytes
 
-    listed = client.get(f"/api/v1/archive/datasets?lumina_person_id={person_id}&metric=heart_rate")
+    listed = client.get(f"/api/v1/archive/datasets?lumina_person_id={person_id}&metric=heart_rate", headers=auth)
     assert listed.status_code == 200
     assert [item["id"] for item in listed.json()] == [body["dataset"]["id"]]
     rows = client.get(f"/api/v1/archive/datasets/{body['dataset']['id']}/rows", headers=auth)
@@ -163,7 +163,7 @@ def test_wearable_minutes_are_parquet_catalogued_and_losslessly_readable(tmp_pat
     assert rows.json()["rows"][0]["value"] == 60.0
     assert rows.json()["rows"][-1]["value"] == 74.39
 
-    lineage = client.get(f"/api/v1/archive/records/{body['record_id']}/lineage")
+    lineage = client.get(f"/api/v1/archive/records/{body['record_id']}/lineage", headers=auth)
     assert lineage.status_code == 200
     assert lineage.json()["object"]["id"] == body["raw_object"]["id"]
     assert lineage.json()["dataset"]["id"] == body["dataset"]["id"]
@@ -174,7 +174,7 @@ def test_wearable_minutes_are_parquet_catalogued_and_losslessly_readable(tmp_pat
 
 
 def test_supersession_keeps_original_inline_record(tmp_path):
-    _, client, _ = archive_client(tmp_path)
+    _, client, auth = archive_client(tmp_path)
     first = client.post(
         "/api/v1/archive/records",
         json={
@@ -184,6 +184,7 @@ def test_supersession_keeps_original_inline_record(tmp_path):
             "record_type": "survey_response",
             "raw_payload": {"answer": "initial"},
         },
+        headers=auth,
     )
     assert first.status_code == 201
     correction = client.post(
@@ -196,10 +197,11 @@ def test_supersession_keeps_original_inline_record(tmp_path):
             "raw_payload": {"answer": "corrected"},
             "supersedes_record_id": first.json()["id"],
         },
+        headers=auth,
     )
     assert correction.status_code == 201
     assert correction.json()["supersedes_record_id"] == first.json()["id"]
-    assert client.get(f"/api/v1/archive/records/{first.json()['id']}").json()["raw_payload"] == {"answer": "initial"}
+    assert client.get(f"/api/v1/archive/records/{first.json()['id']}", headers=auth).json()["raw_payload"] == {"answer": "initial"}
 
 
 def test_preserved_fhir_promotes_through_promop_once_and_records_lineage(tmp_path):
@@ -236,7 +238,7 @@ def test_preserved_fhir_promotes_through_promop_once_and_records_lineage(tmp_pat
     )
     assert retry.status_code == 200
     assert len(promop.calls) == 1
-    lineage = client.get(f"/api/v1/archive/records/{record_id}/lineage")
+    lineage = client.get(f"/api/v1/archive/records/{record_id}/lineage", headers=auth)
     assert lineage.json()["promotions"][0]["target_record_id"] == "7001"
     assert any(event["event_type"] == "promoted" for event in lineage.json()["events"])
 
@@ -254,6 +256,6 @@ def test_failed_promop_promotion_is_retained_as_failed_lineage(tmp_path):
         headers=auth,
     )
     assert failed.status_code == 502
-    lineage = client.get(f"/api/v1/archive/records/{archived.json()['record_id']}/lineage")
+    lineage = client.get(f"/api/v1/archive/records/{archived.json()['record_id']}/lineage", headers=auth)
     assert lineage.json()["promotions"][0]["status"] == "failed"
     assert any(event["event_type"] == "promotion_failed" for event in lineage.json()["events"])

@@ -1,0 +1,70 @@
+# Production overlay. Invoke only through `LUMINA_ENV=production make start`.
+# It intentionally publishes no service ports: attach an authenticated TLS
+# gateway on a private network owned by the deployment platform.
+services:
+  archive:
+    ports: !reset []
+    environment:
+      LUMINA_ENV: production
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: "65532:65532"
+    networks:
+      - services
+      - archive-data
+
+  lumina-api:
+    ports: !reset []
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: "65532:65532"
+    networks:
+      - services
+
+  wearables:
+    ports: !reset []
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: "65532:65532"
+    networks:
+      - services
+
+  promop:
+    ports: !reset []
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - services
+      - promop-data
+
+  archive-db:
+    ports: !reset []
+    networks:
+      - archive-data
+  promop-db:
+    ports: !reset []
+    networks:
+      - promop-data
+
+networks:
+  services:
+    internal: true
+  archive-data:
+    internal: true
+  promop-data:
+    internal: true

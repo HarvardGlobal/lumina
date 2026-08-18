@@ -9,7 +9,7 @@ start:
 	./scripts/with_nix.sh ./scripts/start.sh
 
 stop:
-	docker compose down
+	./scripts/compose.sh down
 
 restart: stop start
 
@@ -23,7 +23,7 @@ check-components:
 	./scripts/with_nix.sh python3 ./scripts/components.py status
 
 logs:
-	docker compose logs -f
+	./scripts/compose.sh logs -f
 
 health:
 	./scripts/healthcheck.sh
@@ -35,10 +35,14 @@ versions:
 	./scripts/with_nix.sh python3 ./scripts/components.py status
 
 test:
-	PYTHONPATH=. pytest -q tests
+	@if [[ -x .venv/bin/python ]]; then \
+		PYTHONPATH=. .venv/bin/python -m pytest -q --cov=services/archive/app --cov=services/api --cov-report=term-missing --cov-fail-under=80 tests; \
+	else \
+		./scripts/with_nix.sh python3 -m pytest -q --cov=services/archive/app --cov=services/api --cov-report=term-missing --cov-fail-under=80 tests; \
+	fi
 
 clean:
-	docker compose down --remove-orphans
+	./scripts/compose.sh down --remove-orphans
 
 nix-update:
 	nix flake update

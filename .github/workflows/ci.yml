@@ -8,14 +8,23 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.5.0
         with:
           python-version: "3.12"
       - name: Install core test dependencies
         run: pip install -r services/archive/requirements.txt -r services/api/requirements.txt
       - name: Test core code
-        run: PYTHONPATH=. pytest -q tests
+        run: PYTHONPATH=. pytest -q --cov=services/archive/app --cov=services/api --cov-report=term-missing --cov-fail-under=80 tests
+      - name: Check known Python dependency vulnerabilities
+        run: |
+          pip install pip-audit==2.9.0
+          pip-audit -r services/archive/requirements.txt
+          pip-audit -r services/api/requirements.txt
+      - name: Static security analysis
+        run: |
+          pip install bandit==1.8.3
+          bandit -q -r services/archive/app services/api/app integrations
       - name: Build LUMINA-owned images
         run: |
           docker build -f services/archive/Dockerfile .

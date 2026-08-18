@@ -187,3 +187,117 @@ See `docs/architecture/archive-promop-contract.md` for the data contract and
 `docs/architecture/archive-storage.md` for the Archive's object, Parquet,
 identity, lineage, and local-security design. See `config/components.yaml` for
 tested sibling revisions.
+
+## Patient-data deployment and compliance boundary
+
+**Do not put patient data into the default local stack.** `.env.example`, the
+default Compose file, localhost ports, Docker volumes, and `make smoke-test`
+are for development and synthetic data only. The smoke test deliberately
+creates a synthetic PRomop person and observation and is blocked when
+`LUMINA_ENV=production`.
+
+The production profile is a technical baseline, not a legal certification.
+Whether HIPAA, GDPR, UK GDPR, research ethics, data-residency, or another
+regime applies depends on the organisation, purpose, geography, contracts, and
+data flows. HIPAA's Security Rule requires administrative, physical, and
+technical safeguards, including access control, audit controls, integrity,
+authentication, and transmission security; source code alone cannot supply all
+of those controls. Review the [HHS Security Rule summary](https://www.hhs.gov/hipaa/for-professionals/security/laws-regulations/index.html)
+with your privacy, security, legal, and clinical-governance owners before any
+live use.
+
+### What the production profile enforces
+
+Set `LUMINA_ENV=production` and run `make start`. Core will use
+`compose.production.yaml` and refuse to start unless all of the following are
+true:
+
+- Archive has a unique bearer secret of at least 32 characters; **every**
+  `/api/v1/archive/*` route, including catalogue, patient, metadata, and
+  lineage routes, requires it. Responses are marked `Cache-Control: no-store`.
+- Archive body size and a per-process rate-limit backstop are enabled. Your
+  ingress must add a shared, identity/IP-aware rate limit as the app backstop
+  is not a replacement for a distributed gateway control.
+- Archive uses an S3-compatible private bucket with `aws:kms` server-side
+  encryption and a named KMS key. The local filesystem object store is rejected
+  in production.
+- PRomop debug mode is off, public URLs are HTTPS, and known local/default
+  passwords, Django secret, service token, and database credentials are
+  rejected.
+- Compose publishes no service ports. Archive, PRomop, Wearables, databases,
+  and the Core API remain on the private service network; documentation/OpenAPI
+  endpoints are disabled for Archive in production.
+
+Copy the names and non-secret structure from `.env.production.example` into
+your secret manager/deployment environment. Do not copy it verbatim into Git,
+place cloud access keys in it, or use long-lived static cloud credentials.
+Archive obtains S3 credentials through the normal workload-identity chain.
+
+```bash
+# After injecting real values through your secret manager/deployment platform:
+export LUMINA_ENV=production
+make start       # validates configuration before any container is started
+make health      # probes services from the private Compose network
+```
+
+`make health` is a liveness check, not an external security acceptance test.
+Production traffic must enter through a separately managed TLS gateway/load
+balancer with a valid certificate, modern TLS policy, OIDC/MFA-backed user
+authentication, role/tenant authorization, request logging/redaction, WAF and
+rate limits. Do not expose the Archive bearer token to browsers or end users;
+it is only a machine-to-machine credential. Deploy a gateway policy that only
+allows the approved service identities to call Archive and PRomop, and applies
+least privilege to each database, bucket prefix, and KMS key.
+
+### Required release gate before live data
+
+An authorised release owner must record evidence for each item below. A failed
+or unowned item means the environment is **not ready for patient data**.
+
+| Gate | Required evidence |
+| --- | --- |
+| Scope and lawful use | Jurisdiction/data classification, approved purpose, data-flow diagram, named data owner, privacy/legal review, consent/IRB basis where applicable. |
+| Identity and access | OIDC/MFA gateway configuration, least-privilege role matrix, break-glass procedure, service-account inventory, quarterly access-review owner. |
+| Encryption and secrets | TLS test, private bucket policy, KMS key policy/rotation, workload identity, secret-manager references, and proof no credentials are committed or logged. |
+| Infrastructure | Private network/firewall rules, hardened hosts, supported OS/container base images, vulnerability remediation SLA, and platform audit logs. |
+| Resilience | Encrypted database and object backups, restoration test with recorded RPO/RTO, disaster-recovery owner, retention/deletion and legal-hold policy. |
+| Detection and response | Central immutable audit-log retention, alerting/on-call, incident and breach-response runbook, tabletop exercise, and vulnerability disclosure process. |
+| Clinical data safety | Source validation rules, identity-linkage ownership, mapping/version approval, clinical review of each promotion type, and rollback/correction procedure. |
+| Verification | Passing pinned-component checks, tests, dependency scan, image scan, penetration test appropriate to exposure, and signed release/change record. |
+| Third parties | Signed required agreements (for example BAAs/DPA), approved cloud region/subprocessors, and vendor risk assessment. |
+
+Archive preserves source bytes and records promotion lineage, but it does not
+decide patient consent, identity matching, clinical appropriateness, retention,
+or legal disclosure. PRomop promotion remains limited to an explicitly selected
+person and preserved FHIR Bundle; wearable and generic source data stay
+Archive-only until a reviewed, versioned clinical transformation is approved.
+
+### Technical operations appendix
+
+1. **Network and ingress:** provision a private container/network environment
+   and attach only the authenticated TLS gateway. Keep databases and object
+   storage private. Do not re-add host ports from `compose.yaml` to the
+   production overlay.
+2. **Object store:** create a dedicated private S3 bucket/prefix, block public
+   access, require KMS encryption and TLS, enable object versioning and the
+   retention/object-lock policy approved by governance. Grant Archive only the
+   needed prefix and KMS actions through workload identity.
+3. **Database:** use a managed/private PostgreSQL service or an equivalently
+   operated service with encryption, backups, patching, access audit, and a
+   tested restoration procedure. Do not rely on the Compose named volumes for
+   production persistence.
+4. **Observability:** send container, gateway, database, cloud audit, and
+   Archive provenance events to a protected central logging system. Redact PHI,
+   authorization headers, tokens, request bodies, and query values before logs
+   leave the workload. Define who reviews access and alert records.
+5. **Change management:** update Nix locks and component SHA pins only through
+   reviewed releases. Run `make check-components`, the test suite, dependency
+   and image scans, and the relevant PRomop tests before promotion. Review
+   `SECURITY.md` and replace the fallback `CODEOWNERS` entries with named
+   accountable owners.
+
+The Core CI runs Archive/API tests with an 80% line-coverage floor, audits the
+pinned Python dependencies, and performs static security analysis. Coverage is
+a regression signal, not proof of clinical correctness or security;
+integration, migration, backup/restore, gateway, and adversarial tests remain
+release-gate requirements.

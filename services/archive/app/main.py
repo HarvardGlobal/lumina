@@ -3,8 +3,11 @@ import json
 import os
 import secrets
 import uuid
+from collections import defaultdict, deque
 from collections.abc import Generator
 from datetime import UTC, datetime
+from threading import Lock
+from time import monotonic
 from typing import Annotated
 
 import pyarrow.parquet as pq
@@ -12,6 +15,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Res
 from pydantic import ValidationError
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
+from starlette.responses import JSONResponse
 
 from .database import make_engine, make_session_factory
 from .models import ArchiveDataset, ArchiveObject, ArchivePromotion, ArchiveProvenanceEvent, ArchiveRecord, IngestionBatch
@@ -40,13 +44,82 @@ def get_session(request: Request) -> Generator[Session, None, None]:
 
 
 def require_protected_access(request: Request) -> None:
-    """Local/POC auth hook; an empty configured token leaves development open."""
+    """Require the configured Archive service credential when one is set."""
     token = request.app.state.bearer_token
     if not token:
         return
     presented = request.headers.get("Authorization", "")
     if not secrets.compare_digest(presented, f"Bearer {token}"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Archive authorization is required")
+
+
+def configured_positive_int(value: str | None, *, name: str, default: int) -> int:
+    if value is None or value == "":
+        return default
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise RuntimeError(f"{name} must be a positive integer") from error
+    if parsed < 1:
+        raise RuntimeError(f"{name} must be a positive integer")
+    return parsed
+
+
+def configured_nonnegative_int(value: str | None, *, name: str, default: int) -> int:
+    if value is None or value == "":
+        return default
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise RuntimeError(f"{name} must be zero or a positive integer") from error
+    if parsed < 0:
+        raise RuntimeError(f"{name} must be zero or a positive integer")
+    return parsed
+
+
+def validate_production_archive_settings(*, bearer_token: str, max_request_bytes: int, rate_limit_per_minute: int) -> None:
+    """Refuse an accidentally insecure Archive production process.
+
+    This validates controls the service can observe.  The deployment runbook
+    separately covers identity, network, backup, and organization controls.
+    """
+    errors: list[str] = []
+    if len(bearer_token) < 32 or bearer_token in {"archive-test-token", "change-me"}:
+        errors.append("ARCHIVE_BEARER_TOKEN must be a unique secret of at least 32 characters")
+    if os.getenv("ARCHIVE_OBJECT_STORE_BACKEND", "filesystem") != "s3":
+        errors.append("ARCHIVE_OBJECT_STORE_BACKEND must be s3 in production; the local filesystem backend is not a production control")
+    if not os.getenv("ARCHIVE_S3_BUCKET"):
+        errors.append("ARCHIVE_S3_BUCKET is required in production")
+    if os.getenv("ARCHIVE_S3_SSE") != "aws:kms" or not os.getenv("ARCHIVE_S3_KMS_KEY_ID"):
+        errors.append("ARCHIVE_S3_SSE=aws:kms and ARCHIVE_S3_KMS_KEY_ID are required in production")
+    if max_request_bytes > 100 * 1024 * 1024:
+        errors.append("ARCHIVE_MAX_REQUEST_BYTES must not exceed 104857600 in production")
+    if rate_limit_per_minute < 1:
+        errors.append("ARCHIVE_RATE_LIMIT_REQUESTS_PER_MINUTE must be enabled in production")
+    if errors:
+        raise RuntimeError("Invalid production Archive configuration: " + "; ".join(errors))
+
+
+class SlidingWindowRateLimiter:
+    """Small per-process backstop; the ingress must also enforce global limits."""
+
+    def __init__(self, limit_per_minute: int):
+        self.limit_per_minute = limit_per_minute
+        self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = Lock()
+
+    def allow(self, key: str) -> bool:
+        if self.limit_per_minute < 1:
+            return True
+        now = monotonic()
+        with self._lock:
+            window = self._hits[key]
+            while window and window[0] <= now - 60:
+                window.popleft()
+            if len(window) >= self.limit_per_minute:
+                return False
+            window.append(now)
+            return True
 
 
 def canonical_json_sha256(payload: object) -> str:
@@ -112,13 +185,88 @@ def create_app(
     object_store_root: str | None = None,
     bearer_token: str | None = None,
     promop_client: PromopClient | None = None,
+    environment: str | None = None,
+    max_request_bytes: int | None = None,
+    rate_limit_per_minute: int | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="LUMINA Archive", version="1.0.0")
+    archive_environment = (environment or os.getenv("LUMINA_ENV", "development")).lower()
+    if archive_environment not in {"development", "test", "staging", "production"}:
+        raise RuntimeError("LUMINA_ENV must be development, test, staging, or production")
+    configured_token = bearer_token if bearer_token is not None else os.getenv("ARCHIVE_BEARER_TOKEN", "")
+    request_limit = max_request_bytes or configured_positive_int(
+        os.getenv("ARCHIVE_MAX_REQUEST_BYTES"), name="ARCHIVE_MAX_REQUEST_BYTES", default=25 * 1024 * 1024
+    )
+    request_rate_limit = rate_limit_per_minute if rate_limit_per_minute is not None else configured_nonnegative_int(
+        os.getenv("ARCHIVE_RATE_LIMIT_REQUESTS_PER_MINUTE"),
+        name="ARCHIVE_RATE_LIMIT_REQUESTS_PER_MINUTE",
+        default=0,
+    )
+    if archive_environment == "production":
+        validate_production_archive_settings(
+            bearer_token=configured_token,
+            max_request_bytes=request_limit,
+            rate_limit_per_minute=request_rate_limit,
+        )
+    app = FastAPI(
+        title="LUMINA Archive",
+        version="1.0.0",
+        docs_url=None if archive_environment == "production" else "/docs",
+        redoc_url=None if archive_environment == "production" else "/redoc",
+        openapi_url=None if archive_environment == "production" else "/openapi.json",
+    )
     app.state.engine = make_engine(database_url)
     app.state.session_factory = make_session_factory(database_url)
     app.state.object_store = make_object_store(object_store_root)
-    app.state.bearer_token = bearer_token if bearer_token is not None else os.getenv("ARCHIVE_BEARER_TOKEN", "")
+    app.state.bearer_token = configured_token
+    app.state.environment = archive_environment
+    app.state.max_request_bytes = request_limit
+    app.state.rate_limiter = SlidingWindowRateLimiter(request_rate_limit)
     app.state.promop_client = promop_client or PromopClient()
+
+    @app.middleware("http")
+    async def protect_archive_api(request: Request, call_next):
+        """Make every Archive API route private when a token is configured.
+
+        This avoids endpoint-by-endpoint omissions for metadata, catalogue, and
+        lineage responses, all of which can contain protected health data.
+        """
+        is_archive_api = request.url.path.startswith("/api/v1/archive")
+        if is_archive_api:
+            content_length = request.headers.get("content-length")
+            if content_length:
+                try:
+                    if int(content_length) > request.app.state.max_request_bytes:
+                        return JSONResponse(status_code=413, content={"detail": "Archive request exceeds the configured size limit"})
+                except ValueError:
+                    return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header"})
+            token = request.app.state.bearer_token
+            presented = request.headers.get("Authorization", "")
+            if token and not secrets.compare_digest(presented, f"Bearer {token}"):
+                return JSONResponse(status_code=401, content={"detail": "Archive authorization is required"})
+            if token and not request.app.state.rate_limiter.allow(hashlib.sha256(presented.encode()).hexdigest()):
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Archive request rate limit exceeded"},
+                    headers={"Retry-After": "60"},
+                )
+        response = await call_next(request)
+        if is_archive_api:
+            response.headers.setdefault("Cache-Control", "no-store")
+            response.headers.setdefault("Pragma", "no-cache")
+            response.headers.setdefault("X-Content-Type-Options", "nosniff")
+            response.headers.setdefault("Referrer-Policy", "no-referrer")
+        return response
+
+    async def read_limited_body(request: Request) -> bytes:
+        """Read a request incrementally so chunked uploads obey the same cap."""
+        chunks: list[bytes] = []
+        received = 0
+        async for chunk in request.stream():
+            received += len(chunk)
+            if received > request.app.state.max_request_bytes:
+                raise HTTPException(status_code=413, detail="Archive request exceeds the configured size limit")
+            chunks.append(chunk)
+        return b"".join(chunks)
 
     @app.get("/health")
     def health(request: Request):
@@ -134,13 +282,16 @@ def create_app(
         response_model=ArchiveRecordRead,
         status_code=status.HTTP_201_CREATED,
     )
-    def create_record(
-        payload: ArchiveRecordCreate,
-        response: Response,
+    async def create_record(
         request: Request,
+        response: Response,
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
         session: Session = Depends(get_session),
     ):
+        try:
+            payload = ArchiveRecordCreate.model_validate_json(await read_limited_body(request))
+        except ValidationError as error:
+            raise HTTPException(status_code=422, detail=error.errors())
         content_digest = canonical_json_sha256(payload.raw_payload)
         existing = duplicate_record(
             session,
@@ -210,7 +361,7 @@ def create_app(
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
         session: Session = Depends(get_session),
     ):
-        data = await request.body()
+        data = await read_limited_body(request)
         if not data:
             raise HTTPException(status_code=422, detail="Archive object body must not be empty")
         digest = sha256(data)
@@ -270,7 +421,7 @@ def create_app(
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
         session: Session = Depends(get_session),
     ):
-        data = await request.body()
+        data = await read_limited_body(request)
         try:
             metadata, source_subject_id = fhir_metadata(data, fhir_version)
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -341,7 +492,7 @@ def create_app(
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
         session: Session = Depends(get_session),
     ):
-        raw_source = await request.body()
+        raw_source = await read_limited_body(request)
         try:
             payload = WearableDatasetCreate.model_validate_json(raw_source)
         except ValidationError as error:

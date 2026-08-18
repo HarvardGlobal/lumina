@@ -127,23 +127,29 @@ record, raw object, normalized dataset, events, and known promotions.
 Dataset catalogue queries are available at `/api/v1/archive/datasets` with
 person, source, modality, metric, and time-range filters.
 
-## Security and local deployment
+## Security and deployment modes
 
 The local object backend is a Docker named volume mounted only into the Archive
-container; it has no public bucket or direct host HTTP endpoint. Raw object
-download and new object/FHIR/dataset ingestion go through Archive service
-endpoints. Set `ARCHIVE_BEARER_TOKEN` in `.env` to require:
+container; it has no public bucket or direct host HTTP endpoint. It is for
+development and synthetic data only. Raw object download and all Archive API
+routes (including catalogue, metadata, patient search, lineage, and promotion)
+require a bearer credential whenever `ARCHIVE_BEARER_TOKEN` is set:
 
 ```http
 Authorization: Bearer <token>
 ```
 
-for those protected paths. An empty token is permitted only for local
-development. The current hook is deliberately small; organization-wide RBAC,
-consent, service identity, key management, retention schedules, and production
-object-lock policy belong to the broader LUMINA authorization/deployment layer.
-This implementation does not claim HIPAA compliance.
+An empty token is permitted only for local development. Production refuses to
+start without a 32+ character token, a request-size limit, and a positive
+rate-limit backstop. It also disables Archive OpenAPI/docs and adds `no-store`
+response headers. The bearer token is a narrow service credential, not a user
+authorization system; it must never be exposed to a browser.
 
-For production, replace the filesystem `ObjectStore` backend with a private
-service such as MinIO/S3 while retaining opaque UUID keys and checksum/catalogue
-semantics. Do not place credentials or API tokens in stored payload metadata.
+Production supports a private S3-compatible `ObjectStore` using opaque UUID
+keys and checksums. It requires an approved private bucket, `aws:kms`
+server-side encryption, and a named KMS key. Credentials use workload identity
+through the AWS provider chain. Configure ingress OIDC/RBAC, global rate
+limits, TLS, logging/redaction, backup/restore, retention/object lock, and
+consent/identity policy outside this service, as documented in the README.
+Do not place credentials or API tokens in stored payload metadata. This
+implementation does not claim HIPAA or other regulatory compliance.
