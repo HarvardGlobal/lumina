@@ -9,7 +9,7 @@ components:
   lumina-wearables:
     repository: https://github.com/HarvardGlobal/lumina-wearables.git
     clone_url: git@github.com:HarvardGlobal/lumina-wearables.git
-    git_ref: e79c4a7b37f53065290b50095f54274da54c902f
+    git_ref: 66771339d3ea60799eb4c47c8d5b8ca103d9e584
     version: 1.1.3
   open-wearables:
     repository: https://github.com/the-momentum/open-wearables.git
