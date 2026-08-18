@@ -1,7 +1,8 @@
 # LUMINA governance
 
-LUMINA is maintained by HarvardGlobal – Division of Clinical Information, Beth
-Israel. Maintainers review contributions for technical quality, security,
+LUMINA is maintained by HarvardGlobal – Division of Clinical Information,
+BIDMC (Beth Israel Deaconess Medical Center). Maintainers review contributions
+for technical quality, security,
 health-data governance, licence compatibility, and project fit.
 
 At least one maintainer approval is required before merging. Changes affecting
