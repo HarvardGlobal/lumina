@@ -5,7 +5,7 @@ components:
   promop:
     repository: https://github.com/healthkey-ai/promop.git
     clone_url: git@github.com:healthkey-ai/promop.git
-    git_ref: dee3d180ce1a8b8dc3f00133bac2c57a89f8e4be
+    git_ref: d941cf65f3f6598f7e8631af8575aa1e014aa62c
   lumina-wearables:
     repository: https://github.com/HarvardGlobal/lumina-wearables.git
     clone_url: git@github.com:HarvardGlobal/lumina-wearables.git
