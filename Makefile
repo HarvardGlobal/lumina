@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: setup start stop restart build logs health smoke-test versions clean test components check-components nix-update
+.PHONY: setup start stop restart build logs health smoke-test versions clean test components check-components nix-check nix-update
 
 setup:
 	./scripts/with_nix.sh ./scripts/bootstrap.sh
@@ -35,10 +35,12 @@ versions:
 	./scripts/with_nix.sh python3 ./scripts/components.py status
 
 test:
-	@if [[ -x .venv/bin/python ]]; then \
+	@if command -v nix >/dev/null 2>&1; then \
+		./scripts/with_nix.sh python3 -m pytest -q --cov=services/archive/app --cov=services/api --cov-report=term-missing --cov-fail-under=80 tests; \
+	elif [[ -x .venv/bin/python ]]; then \
 		PYTHONPATH=. .venv/bin/python -m pytest -q --cov=services/archive/app --cov=services/api --cov-report=term-missing --cov-fail-under=80 tests; \
 	else \
-		./scripts/with_nix.sh python3 -m pytest -q --cov=services/archive/app --cov=services/api --cov-report=term-missing --cov-fail-under=80 tests; \
+		echo "Nix is not installed and .venv is missing. Install Nix or create .venv with the pinned requirements." >&2; exit 1; \
 	fi
 
 clean:
@@ -46,3 +48,7 @@ clean:
 
 nix-update:
 	nix flake update
+
+nix-check:
+	nix flake check
+	nix develop --command python3 -c 'import fastapi, sqlalchemy, pyarrow, boto3; print("Core imports OK")'

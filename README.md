@@ -45,9 +45,12 @@ Before starting, ensure that:
   `HarvardGlobal/lumina-wearables`; Core uses their SSH clone URLs when it
   materializes the pinned revisions.
 - Nix with flakes enabled is installed for the reproducible toolchain. The
-  Make targets enter the committed Nix flake automatically. If Nix is absent,
-  they continue using host Git and Python with a warning, but that is not the
-  reproducible setup.
+  Make targets enter the committed Nix flake automatically. The flake provides
+  pinned Python 3.12 plus every Core runtime import (FastAPI, SQLAlchemy,
+  PyArrow, boto3, and related packages), pytest/coverage, pip-audit, Bandit,
+  Git, Make, curl, and jq. Docker Desktop/Engine remains a host prerequisite.
+  If Nix is absent, orchestration can use host Git/Python with a warning, but
+  `make test` requires a project `.venv`; that is not the reproducible setup.
 
 ```bash
 git clone git@github.com:HarvardGlobal/lumina.git
@@ -175,6 +178,26 @@ to a branch name such as `main` or `dev`.
 
 `make nix-update` deliberately updates the Nix lock file. Review and test that
 change, then commit `flake.lock` with the Core release.
+
+### Nix toolchain details
+
+The committed `flake.lock` fixes the Nix package set; `flake.nix` then selects
+Python 3.12 and the complete Core import/test/security toolchain from that
+fixed package set. Enter it explicitly with:
+
+```bash
+nix develop
+python3 --version
+python3 -c 'import fastapi, sqlalchemy, pyarrow, boto3; print("Core imports OK")'
+make test
+```
+
+`make setup`, `make start`, `make build`, `make components`, and
+`make check-components` enter the same shell automatically. Docker images
+still install the exact version pins in `services/archive/requirements.txt`
+and `services/api/requirements.txt`; review both the Nix lock and those runtime
+requirements when updating Python dependencies. Use `nix flake check` and
+`nix fmt` before changing the flake.
 
 ## Configuration
 

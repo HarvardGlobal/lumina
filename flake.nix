@@ -11,17 +11,41 @@
       forAllSystems = nixpkgs.lib.genAttrs systems;
     in {
       devShells = forAllSystems (system:
-        let pkgs = import nixpkgs { inherit system; };
+        let
+          pkgs = import nixpkgs { inherit system; };
+          python = pkgs.python312.withPackages (ps: [
+            # Archive and Core API runtime imports.
+            ps.fastapi
+            ps.starlette
+            ps.pydantic
+            ps.uvicorn
+            ps.sqlalchemy
+            ps.psycopg
+            ps.alembic
+            ps.httpx
+            ps.pyarrow
+            ps.boto3
+
+            # Test and supply-chain/security checks used by `make test` and CI.
+            ps.pytest
+            ps."pytest-cov"
+            ps."pip-audit"
+            ps.bandit
+          ]);
         in {
           default = pkgs.mkShellNoCC {
             packages = with pkgs; [
+              bashInteractive
+              coreutils
               git
               gnumake
               curl
-              python3
+              jq
+              python
             ];
             shellHook = ''
-              echo "LUMINA Nix shell: pinned tooling is active. Docker Desktop/Engine remains a host prerequisite."
+              export LUMINA_NIX_SHELL=1
+              echo "LUMINA Nix shell: pinned Python 3.12, Core imports, tests, audits, and build tooling are active. Docker Desktop/Engine remains a host prerequisite."
             '';
           };
         });
