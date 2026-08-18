@@ -34,6 +34,13 @@ These checkouts are ignored by Git. Core never uses a mutable branch or a
 nearby sibling repository. PRomop is an external dependency; do not copy its
 models or create another OMOP or PatientRecord implementation here.
 
+Open Wearables is pinned at upstream release `0.7.0` and commit
+`cb3ad1fd1141138179d27f7e787a1d0049a071c9`. Component resolution verifies
+both the immutable Git object and the upstream `backend/pyproject.toml` version
+before it reports the checkout healthy. Wearables is likewise pinned by SHA and
+its `VERSION` file. The commit SHA is the authoritative reproducibility lock;
+the release number is a human-readable compatibility check.
+
 ## Start the complete stack from Core
 
 You only clone this repository. Do **not** clone PRomop, Wearables, or Open
@@ -83,6 +90,23 @@ that application separately, then set `OPEN_WEARABLES_BASE_URL` (including
 `/api/v1`) and inject `OPEN_WEARABLES_API_KEY`. This prevents `make setup` from
 silently creating an unconfigured patient-identity system.
 
+The Nix flake also provides an explicit Open Wearables tooling shell. It uses
+the pinned Nix package set and supplies the upstream-required Python 3.13,
+`uv`, Node.js, and pnpm; the upstream `uv.lock` and `pnpm-lock.yaml` then lock
+its project dependencies. It does not mutate the detached component checkout:
+
+```bash
+make open-wearables-shell
+# Inside the shell, inspect the pinned source:
+cd .lumina/components/open-wearables
+uv --version
+```
+
+Docker Desktop/Engine and a separately configured Open Wearables deployment
+remain host/deployment prerequisites. Do not create its `backend/config/.env`
+inside `.lumina/components`: that would make the immutable source cache dirty.
+Keep configuration and secrets in the deployment environment instead.
+
 The first run can take several minutes because Docker downloads base images and
 PRomop installs Python and frontend dependencies. Later starts reuse Docker and
 Nix caches.
@@ -108,7 +132,7 @@ Archive-to-OMOP path is an explicit FHIR Bundle promotion, described below.
 
 ## Wearable pilot
 
-Wearables `1.1.0` adds a deliberately narrow Open Wearables read-only pilot:
+Wearables `1.1.1` adds a deliberately narrow Open Wearables read-only pilot:
 provider-supplied daily resting heart rate and HRV-SDNN. Its API returns a
 transparent daily preview with provider, device, source-metric, and temporal
 resolution provenance. It does not perform calculations, imputation, or a

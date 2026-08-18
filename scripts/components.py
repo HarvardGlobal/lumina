@@ -23,6 +23,10 @@ REQUIRED_FILES = {
     "lumina-wearables": ("Dockerfile", "app/main.py"),
     "open-wearables": ("docker-compose.yml", "backend/app/main.py"),
 }
+VERSION_FILES = {
+    "lumina-wearables": ("VERSION", re.compile(r"^([^\n]+)$")),
+    "open-wearables": ("backend/pyproject.toml", re.compile(r'^version = "([^"]+)"$', re.MULTILINE)),
+}
 
 
 def run(*args: str, cwd: Path | None = None, capture: bool = False) -> str:
@@ -94,6 +98,19 @@ def validate_layout(component: dict[str, str], target: Path) -> None:
             f"required files: {', '.join(missing)}. Publish a compatible component revision, "
             "then update config/components.yaml to that tested SHA."
         )
+    expected_version = component.get("version")
+    if expected_version is None:
+        return
+    version_file, version_pattern = VERSION_FILES.get(component["name"], ("", re.compile("$^")))
+    if not version_file:
+        raise RuntimeError(f"Pinned {component['name']} declares an unsupported version check")
+    match = version_pattern.search((target / version_file).read_text())
+    actual_version = match.group(1).strip() if match else None
+    if actual_version != expected_version:
+        raise RuntimeError(
+            f"Pinned {component['name']} revision {component['git_ref']} reports version "
+            f"{actual_version!r}, expected {expected_version!r} from config/components.yaml."
+        )
 
 
 def sync_component(component: dict[str, str]) -> None:
@@ -112,7 +129,8 @@ def sync_component(component: dict[str, str]) -> None:
             if is_dirty(target):
                 raise RuntimeError(f"Pinned component {component['name']} has local changes: {target}")
             validate_layout(component, target)
-            print(f"[OK] {component['name']} is pinned at {desired}")
+            version = f" version {component['version']}" if component.get("version") else ""
+            print(f"[OK] {component['name']} is pinned at {desired}{version}")
             return
         run("git", "fetch", "--depth", "1", "origin", desired, cwd=target)
         run("git", "checkout", "--detach", "FETCH_HEAD", cwd=target)
@@ -129,7 +147,8 @@ def sync_component(component: dict[str, str]) -> None:
     if is_dirty(target):
         raise RuntimeError(f"Pinned component {component['name']} has local changes: {target}")
     validate_layout(component, target)
-    print(f"[OK] {component['name']} is pinned at {desired}")
+    version = f" version {component['version']}" if component.get("version") else ""
+    print(f"[OK] {component['name']} is pinned at {desired}{version}")
 
 
 def status_component(component: dict[str, str]) -> bool:
@@ -142,7 +161,8 @@ def status_component(component: dict[str, str]) -> bool:
         except RuntimeError as error:
             print(f"[INVALID] {component['name']}: {error}")
             return False
-        print(f"[OK] {component['name']}: {actual}")
+        version = f" version {component['version']}" if component.get("version") else ""
+        print(f"[OK] {component['name']}: {actual}{version}")
         return True
     if actual is None:
         print(f"[MISSING] {component['name']}: run `make components`")

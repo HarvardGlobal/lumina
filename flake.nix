@@ -48,6 +48,24 @@
               echo "LUMINA Nix shell: pinned Python 3.12, Core imports, tests, audits, and build tooling are active. Docker Desktop/Engine remains a host prerequisite."
             '';
           };
+          "open-wearables" = pkgs.mkShellNoCC {
+            packages = with pkgs; [
+              bashInteractive
+              coreutils
+              git
+              gnumake
+              curl
+              jq
+              python313
+              uv
+              nodejs_22
+              pnpm
+            ];
+            shellHook = ''
+              export LUMINA_NIX_SHELL=1
+              echo "Open Wearables Nix shell: pinned source is in .lumina/components/open-wearables; Python 3.13, uv, Node.js, and pnpm are available. Docker Desktop/Engine and a separately managed Open Wearables deployment remain required."
+            '';
+          };
         });
       formatter = forAllSystems (system: (import nixpkgs { inherit system; }).nixfmt-rfc-style);
     };
