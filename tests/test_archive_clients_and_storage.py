@@ -1,4 +1,6 @@
 from types import SimpleNamespace
+from pathlib import Path
+import tempfile
 from uuid import UUID
 
 import httpx
@@ -47,6 +49,15 @@ def test_filesystem_store_is_immutable_and_confined(tmp_path):
         store.get("file:///tmp/not-an-archive-object")
     with pytest.raises(ValueError):
         store.put(object_id, b"x", namespace="unsupported")
+
+
+def test_filesystem_store_uses_unique_temporary_root_when_unconfigured(monkeypatch):
+    monkeypatch.delenv("ARCHIVE_OBJECT_STORE_ROOT", raising=False)
+    first = FilesystemObjectStore()
+    second = FilesystemObjectStore()
+    assert first.root != second.root
+    assert first.root.parent == Path(tempfile.gettempdir()).resolve()
+    assert second.root.parent == Path(tempfile.gettempdir()).resolve()
 
 
 def test_s3_store_uses_configured_kms_and_private_bucket(monkeypatch):

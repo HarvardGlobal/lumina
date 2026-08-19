@@ -8,6 +8,7 @@ can be added without changing catalogue or API semantics.
 from __future__ import annotations
 
 import os
+import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 from uuid import UUID
@@ -34,7 +35,15 @@ class FilesystemObjectStore(ObjectStore):
     backend_name = "filesystem"
 
     def __init__(self, root: str | Path | None = None):
-        self.root = Path(root or os.getenv("ARCHIVE_OBJECT_STORE_ROOT", "/tmp/lumina-archive-objects")).resolve()
+        configured_root = root or os.getenv("ARCHIVE_OBJECT_STORE_ROOT")
+        # Compose supplies a persistent development volume and production
+        # requires S3. A unique directory is safe for ad-hoc local/test use;
+        # a shared predictable /tmp path could be pre-created or substituted.
+        self.root = (
+            Path(configured_root).resolve()
+            if configured_root
+            else Path(tempfile.mkdtemp(prefix="lumina-archive-objects-")).resolve()
+        )
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path(self, storage_uri: str) -> Path:
