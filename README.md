@@ -164,12 +164,20 @@ Archive-to-OMOP path is an explicit FHIR Bundle promotion, described below.
 
 ## Wearable pilot
 
-Wearables `1.1.1` adds a deliberately narrow Open Wearables read-only pilot:
+Wearables `1.1.3` provides a deliberately narrow Open Wearables read-only pilot:
 provider-supplied daily resting heart rate and HRV-SDNN. Its API returns a
 transparent daily preview with provider, device, source-metric, and temporal
 resolution provenance. It does not perform calculations, imputation, or a
 database write. The human lookup sheet and the exact source-field mappings are
 in the pinned Wearables repository at `docs/metric-cheat-sheet.md`.
+
+The approved future standardisation path is **device/provider → Open Wearables
+→ LUMINA semantic validation → LOINC code → local OMOP concept from a pinned
+Athena vocabulary release → PRomop/OMOP**. Athena supplies the vocabulary
+release loaded into PRomop; it is not a live runtime conversion service. The
+mapping and release rules are defined in Wearables'
+`docs/omop-vocabulary-mapping.md` and
+`docs/architecture/wearable-data-lineage.md`.
 
 This release does not yet write those samples into PRomop. The current PRomop
 wearable endpoint accepts native Garmin FIT and Apple Health ZIP files; it does
