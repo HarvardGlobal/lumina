@@ -8,9 +8,10 @@ identity fields, a mapping version, schema version, ingestion batch, provenance
 events, and an explicit record supersession link.
 
 LUMINA Wearables does **not** call Archive yet. It can export an approved,
-daily resting-HR or SDNN record directly to PRomop through PRomop's generic
-OMOP APIs. This document is the contract the Archive integration must implement
-before original wearable payloads are retained in LUMINA.
+verified, date-stamped activity, sleep, or recovery summary record directly to
+PRomop through PRomop's generic OMOP APIs. This document is the contract the
+Archive integration must implement before original wearable payloads are
+retained in LUMINA.
 
 ## The three distinct versions
 
@@ -21,7 +22,7 @@ retain these separate values:
 | --- | --- | --- | --- |
 | Acquisition software | Open Wearables `0.7.0`, Git `cb3ad1f…` | Raw-object metadata and ingestion provenance | Explains the source API behaviour and provider adapter used. |
 | Source-device context | provider `garmin`, model/type, pseudonymous device ID, firmware if supplied | Raw-object metadata and every normalised observation | A person can change device; the same device can have multiple collection periods. It is not a person identifier. |
-| LUMINA interpretation | Wearables `1.1.5`, Git `945430e…`, mapping registry `0.1.1`, schema `1.1.0` | Dataset `mapping_version`, `schema_version`, provenance event | Allows a mapping correction to create a new derived dataset without changing source evidence. |
+| LUMINA interpretation | Wearables `1.2.0`, Git `4588853…`, mapping registry `0.1.1`, schema `1.1.0` | Dataset `mapping_version`, `schema_version`, provenance event | Allows a mapping correction to create a new derived dataset without changing source evidence. |
 | OMOP vocabulary | PRomop lookup's Athena vocabulary-release metadata plus the resolved local OMOP `concept_id` | Approved export and promotion receipt | Explains exactly which standard concept was used if a vocabulary release changes. |
 
 The content SHA-256 identifies a particular immutable payload, while the
