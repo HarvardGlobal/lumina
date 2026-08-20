@@ -164,12 +164,13 @@ Archive-to-OMOP path is an explicit FHIR Bundle promotion, described below.
 
 ## Wearable pilot
 
-Wearables `1.1.3` provides a deliberately narrow Open Wearables read-only pilot:
+Wearables `1.1.4` provides a deliberately narrow Open Wearables pilot:
 provider-supplied daily resting heart rate and HRV-SDNN. Its API returns a
 transparent daily preview with provider, device, source-metric, and temporal
-resolution provenance. It does not perform calculations, imputation, or a
-database write. The human lookup sheet and the exact source-field mappings are
-in the pinned Wearables repository at `docs/metric-cheat-sheet.md`.
+resolution provenance, and its protected export route can send approved rows
+to PRomop. It does not perform calculations or imputation. The human lookup
+sheet and the exact source-field mappings are in the pinned Wearables repository
+at `docs/metric-cheat-sheet.md`.
 
 The approved future standardisation path is **device/provider → Open Wearables
 → LUMINA semantic validation → LOINC code → local OMOP concept from a pinned
@@ -179,13 +180,13 @@ mapping and release rules are defined in Wearables'
 `docs/omop-vocabulary-mapping.md` and
 `docs/architecture/wearable-data-lineage.md`.
 
-This release does not yet write those samples into PRomop. The current PRomop
-wearable endpoint accepts native Garmin FIT and Apple Health ZIP files; it does
-not provide an authenticated endpoint for canonical daily service-to-service
-records. LUMINA therefore does not bypass PRomop or fabricate a provider file.
-The proposed PRomop-owned import contract is documented in Wearables at
-`docs/promop-integration.md`; it is the next prerequisite for a direct
-PRomop-only integration.
+The protected export route uses PRomop's existing service-token concept lookup
+and generic Measurement APIs. It resolves LOINC codes against PRomop's loaded
+Athena vocabulary at write time, passes an explicit PRomop Person ID, and leaves
+OMOP schema ownership, local HK-Wearable concepts, idempotent writes, and
+PatientRecord aggregation to PRomop. Configure a distinct
+`LUMINA_WEARABLES_EXPORT_TOKEN`, then call the route documented in Wearables'
+`README.md` and `docs/promop-integration.md`.
 
 For a full LUMINA deployment, raw Open Wearables responses can later be stored
 in Archive before a selected, approved daily metric is promoted to PRomop. Raw

@@ -7,9 +7,10 @@ objects with SHA-256, a normalised Parquet dataset catalogue, source and LUMINA
 identity fields, a mapping version, schema version, ingestion batch, provenance
 events, and an explicit record supersession link.
 
-LUMINA Wearables does **not** call Archive yet. Its current endpoint is a
-read-only preview of Open Wearables recovery data. This document is the
-contract the Archive integration must implement before patient data is sent.
+LUMINA Wearables does **not** call Archive yet. It can export an approved,
+daily resting-HR or SDNN record directly to PRomop through PRomop's generic
+OMOP APIs. This document is the contract the Archive integration must implement
+before original wearable payloads are retained in LUMINA.
 
 ## The three distinct versions
 

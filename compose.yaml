@@ -95,6 +95,13 @@ services:
     environment:
       OPEN_WEARABLES_BASE_URL: ${OPEN_WEARABLES_BASE_URL}
       OPEN_WEARABLES_API_KEY: ${OPEN_WEARABLES_API_KEY}
+      PROMOP_BASE_URL: http://promop:8000
+      PROMOP_SERVICE_AUTH_TOKEN: ${PROMOP_SERVICE_AUTH_TOKEN:-lumina-local-promop-service-token}
+      PROMOP_REQUEST_TIMEOUT_SECONDS: ${PROMOP_REQUEST_TIMEOUT_SECONDS:-30}
+      LUMINA_WEARABLES_EXPORT_TOKEN: ${LUMINA_WEARABLES_EXPORT_TOKEN:-lumina-local-wearables-export-token}
+    depends_on:
+      promop:
+        condition: service_healthy
     ports:
       - "${WEARABLES_API_PORT}:8300"
     healthcheck:
