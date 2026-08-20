@@ -164,7 +164,7 @@ Archive-to-OMOP path is an explicit FHIR Bundle promotion, described below.
 
 ## Wearable pilot
 
-Wearables `1.2.1` implements PRomop's full 18-metric wearable registry and
+Wearables `1.2.2` implements PRomop's full 18-metric wearable registry and
 retrieves the source-equivalent, date-stamped activity, sleep, and recovery
 summary fields currently available from Open Wearables. Its protected export
 route sends those approved rows to PRomop with provider, device, source-metric,
