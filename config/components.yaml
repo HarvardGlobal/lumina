@@ -1,5 +1,5 @@
 lumina:
-  version: 1.2.0
+  version: 1.2.1
 
 components:
   promop:
@@ -9,8 +9,8 @@ components:
   lumina-wearables:
     repository: https://github.com/HarvardGlobal/lumina-wearables.git
     clone_url: git@github.com:HarvardGlobal/lumina-wearables.git
-    git_ref: 458885307102047385ed3a369e70049a9d26a0dc
-    version: 1.2.0
+    git_ref: 700eab816a7b098a7313998a2bdd0478b442984f
+    version: 1.2.1
   open-wearables:
     repository: https://github.com/the-momentum/open-wearables.git
     clone_url: https://github.com/the-momentum/open-wearables.git
