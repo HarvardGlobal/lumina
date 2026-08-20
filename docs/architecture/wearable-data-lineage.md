@@ -21,8 +21,8 @@ retain these separate values:
 | --- | --- | --- | --- |
 | Acquisition software | Open Wearables `0.7.0`, Git `cb3ad1f…` | Raw-object metadata and ingestion provenance | Explains the source API behaviour and provider adapter used. |
 | Source-device context | provider `garmin`, model/type, pseudonymous device ID, firmware if supplied | Raw-object metadata and every normalised observation | A person can change device; the same device can have multiple collection periods. It is not a person identifier. |
-| LUMINA interpretation | Wearables Git `5d9fc7b…`, mapping `wearable-mapping/0.1.1`, schema `1.1.0` | Dataset `mapping_version`, `schema_version`, provenance event | Allows a mapping correction to create a new derived dataset without changing source evidence. |
-| OMOP vocabulary | Athena release identifier plus the resolved local OMOP `concept_id` | Approved export and promotion receipt | Explains exactly which standard concept was used if a vocabulary release changes. |
+| LUMINA interpretation | Wearables `1.1.5`, Git `945430e…`, mapping registry `0.1.1`, schema `1.1.0` | Dataset `mapping_version`, `schema_version`, provenance event | Allows a mapping correction to create a new derived dataset without changing source evidence. |
+| OMOP vocabulary | PRomop lookup's Athena vocabulary-release metadata plus the resolved local OMOP `concept_id` | Approved export and promotion receipt | Explains exactly which standard concept was used if a vocabulary release changes. |
 
 The content SHA-256 identifies a particular immutable payload, while the
 source record identifier and retrieval window identify what the provider says
@@ -56,9 +56,9 @@ Device/provider payload
 5. Promote only an approved, traceable daily derived metric. Resolve its
    approved LOINC code against PRomop's local OMOP vocabulary loaded from a
    pinned Athena release; do not call Athena as a live ingestion service.
-   Store the vocabulary release, resolved OMOP concept ID, target receipt, and
-   OMOP identifiers as a promotion event. Raw heart-rate samples remain Archive
-   data, not one OMOP measurement per sample.
+   Store the vocabulary-release metadata returned by PRomop, resolved OMOP
+   concept ID, target receipt, and OMOP identifiers as a promotion event. Raw
+   heart-rate samples remain Archive data, not one OMOP measurement per sample.
 
 ## Device-linking rule
 
